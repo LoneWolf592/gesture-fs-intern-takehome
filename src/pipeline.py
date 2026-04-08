@@ -12,6 +12,7 @@ Useful docs:
   - HuggingFace pipelines: https://python.langchain.com/docs/integrations/llms/huggingface_pipelines/
 """
 
+import argparse
 import os
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from src.knowledge_base import build_knowledge_base
@@ -81,7 +82,21 @@ def ask_question(vector_store, llm, question: str) -> dict:
             "sources" -> list[str]: the chunk texts that were retrieved
     """
     # TODO: implement this (~6-8 lines)
-    raise NotImplementedError("TODO 1: Implement ask_question")
+
+    if not question.strip():
+        return {"answer": "Please enter a valid question.", "sources": []}
+    
+    docs = vector_store.similarity_search(question, k=3)
+
+    sources = [doc.page_content for doc in docs]
+    context = "\n\n".join(sources)
+
+    prompt = PROMPT_TEMPLATE.format(context=context, question=question)
+
+    result = llm(prompt)
+    answer = result[0]["generated_text"]
+
+    return {"answer": answer, "sources": sources}
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -103,7 +118,44 @@ def main():
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
 
     # TODO: implement this (~10-12 lines)
-    raise NotImplementedError("TODO 2: Complete the interactive loop")
+    parser = argparse.ArgumentParser(description="Document Q&A")
+    parser.add_argument("--query", type=str, help="Ask a single question and exit")
+    args = parser.parse_args()
+    
+    vector_store = build_knowledge_base(data_dir)
+    llm = get_llm()
+
+    if args.query:
+        result = ask_question(vector_store, llm, args.query)
+        print("\nSources:")
+        for i, source in enumerate(result["sources"], 1):
+            print(f"{i}. {source}")
+        
+        print(f"\nAnswer: {result['answer']}\n")
+        return
+    
+    
+    print("Welcome to the Document Q&A! Type 'quit' to exit.")
+
+    while True:
+        question = input("Please enter your question: ").strip()
+        
+
+        if question.lower() == "quit":
+            print("Goodbye!")
+            break
+
+        if not question:
+            print("Please enter a question.\n")
+            continue
+
+        result = ask_question(vector_store, llm, question)
+
+        print("\nSources:")
+        for i, source in enumerate(result["sources"], 1):
+            print(f"{i}. {source}")
+
+        print(f"\nAnswer: {result['answer']}\n")
 
 
 if __name__ == "__main__":
